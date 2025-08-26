@@ -11,4 +11,14 @@ COPYING export-ignore
 README.md export-ignore
 icon.png export-ignore
 icon.png.import export-ignore
+icon.svg export-ignore
+icon.svg.import export-ignore
 project.godot export-ignore
+addons/auto-bus/editor_plugin.gd
+addons/auto-bus/plugin.cfg
+addons/auto-bus/icons/SignalNode.svg export-ignore
+addons/auto-bus/icons/SignalNode.svg.import export-ignore
+addons/auto-bus/icons/SignalReceptor.svg export-ignore
+addons/auto-bus/icons/SignalReceptor.svg.import export-ignore
+addons/auto-bus/src/SignalNode.gd export-ignore
+addons/auto-bus/src/SignalReceptor.gd export-ignore
