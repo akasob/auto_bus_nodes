@@ -17,7 +17,9 @@ class EmitCancelationToken: pass
 func configure(signal_name: StringName, custom_bus: Node = null) -> SignalEmitter:
 	emit_to = signal_name
 	if custom_bus:
-		signal_bus = custom_bus
+		if custom_bus != signal_bus:
+			_unset()
+			signal_bus = custom_bus
 	_setup()
 	return self
 
@@ -45,6 +47,12 @@ static func create(signal_name: StringName, parameter = EmitCancelationToken.new
 func _setup() -> void:
 	if not signal_bus.has_user_signal(emit_to):
 		signal_bus.add_user_signal(emit_to)
+		signal_bus.notify_property_list_changed()
+
+
+func _unset() -> void:
+	if signal_bus.has_user_signal(emit_to):
+		signal_bus.remove_user_signal(emit_to)
 		signal_bus.notify_property_list_changed()
 
 
