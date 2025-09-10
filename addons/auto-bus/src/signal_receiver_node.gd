@@ -9,8 +9,13 @@ extends SignalBase
 @export var react_to : StringName = &"":
 	get:
 		return react_to if react_to else name
+	set(v):
+		if v != react_to:
+			_unsubscribe()
+			react_to = v
+			_subscribe()
 
-var _is_registered := false 
+#var _is_registered := false 
 
 ## Emitted when the signal of 'react_to' is received.
 signal react(parameter)
@@ -37,8 +42,8 @@ func attach(callback: Callable, flags: int = 0) -> SignalReceiver:
 ## Register new Receiver and place them to given bus as a internal child.
 static func register(signal_name: StringName, callback: Callable, custom_bus: Node = null) -> void:
 	var new_receiver := SignalReceiver.create(signal_name, callback, custom_bus)
-	new_receiver.name = "%s_receiver_%s" % [signal_name, new_receiver.get_instance_id()]
-	new_receiver.signal_bus.add_child.call_deferred(new_receiver, true, Node.INTERNAL_MODE_FRONT)
+	_set_rcv_name(new_receiver)
+	_add_rcv_to_bus(new_receiver, new_receiver.signal_bus)
 	if not new_receiver.signal_bus.is_inside_tree():
 		# Notify Receiver as READY because setup don't work at this point
 		new_receiver.notification(NOTIFICATION_READY)
@@ -64,12 +69,52 @@ static func cleanup(bus: Node) -> int:
 	return cleanup_counter
 
 
+## Get disconnected Receivers list for given bus.
+## This function returns list of nodes to be used for pooling.
+static func get_orphans(bus: Node) -> Array[SignalReceiver]:
+	if not bus:
+		return []
+	var result : Array[SignalReceiver]
+	for node in bus.get_children(true):
+		if node is SignalReceiver:
+			if not node.react.get_connections():
+				result.append(node)
+	return result
+
+
+## Get first disconnected Receiver on given bus.
+## If bus have no Receivers, create and return new one.
+static func get_first_orphan(bus: Node = null) -> SignalReceiver:
+	var result := SignalReceiver.new()
+	if not bus:
+		bus = result.signal_bus
+	for node in bus.get_children(true):
+		if node is SignalReceiver:
+			if not node.react.get_connections():
+				result.queue_free()
+				return node
+	_set_rcv_name(result)
+	_add_rcv_to_bus(result, bus)
+	#bus.add_child.call_deferred(result, true, Node.INTERNAL_MODE_BACK)
+	return result.configure(&"_rename_me_", bus)
+
+
+static func _set_rcv_name(receiver: SignalReceiver) -> void:
+	if not receiver.name:
+		receiver.name = &"auto"
+	receiver.name = "%s_receiver_%s" % [receiver.react_to, receiver.get_instance_id()]
+
+
+static func _add_rcv_to_bus(receiver: SignalReceiver, bus: Node) -> void:
+	bus.add_child.call_deferred(receiver, true, Node.INTERNAL_MODE_BACK)
+
+
 ## Subscribe (connect) configured callback to bus signal.
 func _subscribe() -> void:
 	if signal_bus.has_user_signal(react_to) \
 	and not signal_bus.is_connected(react_to, _react_func):
-		_is_registered = true
 		signal_bus.connect(react_to, _react_func)
+		#_is_registered = true
 
 
 ## Unsubscribe (disconnect) any subscriptions (connections).
@@ -82,6 +127,7 @@ func _unsubscribe() -> void:
 	if signal_bus.has_user_signal(react_to) \
 	and signal_bus.is_connected(react_to, _react_func):
 		signal_bus.disconnect(react_to, _react_func)
+		#_is_registered = false
 
 
 func _notification(what: int) -> void:
@@ -90,8 +136,7 @@ func _notification(what: int) -> void:
 		NOTIFICATION_ENTER_TREE:
 			pass # Don't setup here
 		NOTIFICATION_READY:
-			if not _is_registered:
-				# _is_registered becomes true later in _subscribe()
+			if not signal_bus.property_list_changed.is_connected(_subscribe):
 				signal_bus.property_list_changed.connect(_subscribe)
 			_subscribe()
 		NOTIFICATION_EXIT_TREE:
